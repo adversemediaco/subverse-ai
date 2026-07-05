@@ -1,58 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isR2Enabled } from "@/lib/config";
+import { getPresignedUploadUrl } from "@/lib/storage/r2";
+import { generateId } from "@/lib/utils";
 
 /**
  * POST /api/upload
- * Handles video upload via presigned URL flow.
- * In production, this generates a presigned URL for Cloudflare R2 upload.
+ * Returns a presigned URL the browser uses to upload a video directly to R2.
+ * In demo mode (no R2 keys) it returns a placeholder so the UI flow still works.
  */
+
+const ALLOWED_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo", "video/x-matroska", "video/webm"];
+const MAX_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
 
 export async function POST(request: NextRequest) {
   try {
-    // In production: authenticate user via Clerk
-    // const { userId } = auth();
-    // if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { fileName, fileSize, fileType } = await request.json();
 
-    const body = await request.json();
-    const { fileSize, fileType } = body;
-
-    // Validate file type
-    const allowedTypes = ["video/mp4", "video/mov", "video/avi", "video/mkv", "video/webm"];
-    if (!allowedTypes.includes(fileType)) {
+    if (!fileType || !ALLOWED_TYPES.includes(fileType)) {
       return NextResponse.json(
         { error: "Invalid file type. Supported: MP4, MOV, AVI, MKV, WebM" },
         { status: 400 }
       );
     }
-
-    // Validate file size (5GB max)
-    const MAX_SIZE = 5 * 1024 * 1024 * 1024;
-    if (fileSize > MAX_SIZE) {
-      return NextResponse.json(
-        { error: "File too large. Maximum size is 5GB." },
-        { status: 400 }
-      );
+    if (typeof fileSize === "number" && fileSize > MAX_SIZE) {
+      return NextResponse.json({ error: "File too large. Maximum size is 5GB." }, { status: 400 });
     }
 
-    // In production: Generate presigned URL for R2 upload
-    // const key = `uploads/${userId}/${generateId()}-${fileName}`;
-    // const presignedUrl = await getPresignedUploadUrl(key, fileType);
+    const projectId = `proj_${generateId()}`;
+    const key = `uploads/${projectId}/${(fileName as string) || "video"}`;
 
-    // Create project in database
-    // const project = await prisma.project.create({
-    //   data: { userId, name: fileName, videoKey: key, fileSize, status: "UPLOADING" }
-    // });
+    // LIVE: real presigned R2 URL
+    if (isR2Enabled) {
+      const uploadUrl = await getPresignedUploadUrl(key, fileType);
+      return NextResponse.json({ success: true, uploadUrl, projectId, key });
+    }
 
+    // DEMO: placeholder response
     return NextResponse.json({
       success: true,
-      uploadUrl: "https://upload.subverse.ai/presigned-url-placeholder",
-      projectId: "proj_" + Date.now(),
-      message: "Upload URL generated. Upload your file to begin processing.",
+      uploadUrl: "https://upload.subverse.ai/demo-presigned-url",
+      projectId,
+      key,
+      demo: true,
     });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

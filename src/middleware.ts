@@ -1,48 +1,37 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 /**
- * Middleware — Route protection and request handling.
+ * Middleware — Route protection.
  *
- * In production with Clerk, this would use clerkMiddleware() to protect
- * dashboard and admin routes. Here we provide a lightweight scaffold that
- * demonstrates the intended protected-route matching.
+ * When Clerk is configured (CLERK_SECRET_KEY present), we protect the
+ * dashboard/admin routes with Clerk. In demo mode (no key) we fall back to a
+ * pass-through so the app stays fully browsable without auth.
  *
- * To enable Clerk:
- *   import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
- *   const isProtected = createRouteMatcher(["/dashboard(.*)", "/admin(.*)"]);
- *   export default clerkMiddleware((auth, req) => {
- *     if (isProtected(req)) auth().protect();
- *   });
+ * `clerkMiddleware` is imported statically (Edge-runtime safe) but only invoked
+ * when Clerk is configured — importing it is harmless without keys.
  */
 
-const PROTECTED_PREFIXES = ["/dashboard", "/admin"];
+const clerkConfigured = !!process.env.CLERK_SECRET_KEY;
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/admin(.*)"]);
 
-  const isProtected = PROTECTED_PREFIXES.some((prefix) =>
-    pathname.startsWith(prefix)
-  );
+const clerkHandler = clerkMiddleware((auth, req) => {
+  // Clerk v5 API: call auth() to get the helper, then protect().
+  if (isProtectedRoute(req)) auth().protect();
+});
 
-  // In production, verify the Clerk session token here.
-  // For the scaffold we simply allow through and let Clerk components handle auth UI.
-  if (isProtected) {
-    // Example redirect logic (disabled in scaffold):
-    // const isAuthed = Boolean(request.cookies.get("__session"));
-    // if (!isAuthed) {
-    //   const loginUrl = new URL("/login", request.url);
-    //   loginUrl.searchParams.set("redirect_url", pathname);
-    //   return NextResponse.redirect(loginUrl);
-    // }
-  }
-
+// Pass-through used in demo mode.
+function passthrough() {
   return NextResponse.next();
 }
 
+export default clerkConfigured ? clerkHandler : passthrough;
+
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files
-    "/((?!_next|.*\\..*).*)",
+    // Skip Next.js internals and static assets, but always run on API routes.
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
   ],
 };

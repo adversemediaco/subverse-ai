@@ -1,52 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isStripeEnabled } from "@/lib/config";
+import { createCheckoutSession, createBillingPortalSession } from "@/lib/stripe";
 
 /**
  * POST /api/billing
- * Manage billing operations: create checkout, manage subscription, webhooks.
+ * Handles checkout, billing-portal, and cancellation actions.
+ * Falls back to demo placeholder URLs when Stripe isn't configured.
  */
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { action } = body;
+    const { action, priceId, customerId, customerEmail } = await request.json();
 
     switch (action) {
       case "create-checkout": {
-        // In production: Create Stripe checkout session
-        // const session = await stripe.checkout.sessions.create({
-        //   customer: user.stripeCustomerId,
-        //   mode: "subscription",
-        //   line_items: [{ price: priceId, quantity: 1 }],
-        //   success_url: `${APP_URL}/dashboard/billing?success=true`,
-        //   cancel_url: `${APP_URL}/dashboard/billing?canceled=true`,
-        // });
-
-        return NextResponse.json({
-          url: "https://checkout.stripe.com/placeholder",
-          sessionId: "cs_" + Date.now(),
-        });
+        if (!isStripeEnabled) {
+          return NextResponse.json({ url: "https://checkout.stripe.com/demo-session", demo: true });
+        }
+        if (!priceId) {
+          return NextResponse.json({ error: "priceId is required" }, { status: 400 });
+        }
+        const { url, sessionId } = await createCheckoutSession({ priceId, customerId, customerEmail });
+        return NextResponse.json({ url, sessionId });
       }
 
       case "manage-subscription": {
-        // In production: Create Stripe billing portal session
-        // const portalSession = await stripe.billingPortal.sessions.create({
-        //   customer: user.stripeCustomerId,
-        //   return_url: `${APP_URL}/dashboard/billing`,
-        // });
-
-        return NextResponse.json({
-          url: "https://billing.stripe.com/portal/placeholder",
-        });
-      }
-
-      case "cancel-subscription": {
-        // In production: Cancel at period end
-        // await stripe.subscriptions.update(subId, { cancel_at_period_end: true });
-
-        return NextResponse.json({
-          success: true,
-          message: "Subscription will be canceled at end of billing period.",
-        });
+        if (!isStripeEnabled) {
+          return NextResponse.json({ url: "https://billing.stripe.com/demo-portal", demo: true });
+        }
+        if (!customerId) {
+          return NextResponse.json({ error: "customerId is required" }, { status: 400 });
+        }
+        const { url } = await createBillingPortalSession(customerId);
+        return NextResponse.json({ url });
       }
 
       default:
@@ -54,16 +40,13 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error("Billing error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 /**
- * GET /api/billing
- * Get current subscription status and usage.
+ * GET /api/billing — current subscription + usage summary.
+ * (Demo values; wire to your DB/Stripe customer in production.)
  */
 export async function GET() {
   return NextResponse.json({
@@ -75,10 +58,5 @@ export async function GET() {
       storage: { used: 4.2, limit: 10, unit: "GB" },
       credits: { used: 880, limit: 1000 },
     },
-    invoices: [
-      { id: "inv_1", date: "2024-07-15", amount: 2900, status: "paid" },
-      { id: "inv_2", date: "2024-06-15", amount: 2900, status: "paid" },
-      { id: "inv_3", date: "2024-05-15", amount: 2900, status: "paid" },
-    ],
   });
 }

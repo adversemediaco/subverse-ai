@@ -263,6 +263,37 @@ The app targets a Lighthouse score above 95 with lazy loading, image optimizatio
 
 ---
 
+## Integration Modes (Demo vs Live)
+
+SubVerse AI runs in two modes with **zero code changes** — it detects which
+integrations are configured via environment variables (`src/lib/config.ts`):
+
+- **Demo mode** (default, no keys): every screen renders with realistic mock
+  data. The app builds, deploys, and is fully browsable. Perfect for previews.
+- **Live mode**: adding the relevant env vars activates real integrations
+  automatically. Nothing throws at import time — a feature only errors if you
+  invoke it without its key.
+
+| Integration | Enable by setting | Powers |
+|-------------|-------------------|--------|
+| **Clerk** | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Real login/signup + protected routes |
+| **PostgreSQL** | `DATABASE_URL` | Persisted projects, subtitles, usage |
+| **OpenAI** | `OPENAI_API_KEY` | Whisper transcription, translation, content |
+| **Cloudflare R2** | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | Direct video uploads via presigned URLs |
+| **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Checkout, billing portal, webhooks |
+
+### How it fits together
+- `src/lib/config.ts` — feature flags (`isClerkEnabled`, `isDatabaseEnabled`, …)
+- `src/components/providers.tsx` — React Query always; Clerk only when enabled
+- `src/middleware.ts` — Clerk route protection when configured, else pass-through
+- `src/lib/stripe.ts`, `src/lib/storage/r2.ts`, `src/lib/ai/openai.ts`, `src/lib/db/queries.ts` — lazily-initialised service clients
+- `src/lib/subtitles.ts` — pure SRT/VTT/TXT/JSON converters (unit-tested)
+- API routes under `src/app/api/*` — live behaviour when configured, mock fallback otherwise
+
+### CI & Testing
+- **GitHub Actions** (`.github/workflows/ci.yml`): install → prisma generate → lint → typecheck → test → build on every push/PR.
+- **Vitest**: `npm run test` runs unit tests for the subtitle converters and utility functions.
+
 ## Roadmap
 
 - [ ] Real-time collaboration on subtitle editing

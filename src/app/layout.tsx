@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "@/components/providers";
 
 /**
  * Root layout for the entire application.
@@ -61,7 +62,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrains.variable} font-sans antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same ref to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Uses `npm install` (not `npm ci`) since a lockfile is generated on first
+      # install. Once you commit package-lock.json you can switch to `npm ci`
+      # and re-enable setup-node's `cache: npm` for faster CI.
+      - name: Install dependencies
+        run: npm install
+
+      # Prisma client must be generated before typecheck/build.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      # `next build` performs strict TypeScript type-checking (the build guards
+      # were removed), and generates next-env.d.ts. Running it here covers both
+      # type-safety and a full production build in demo mode (no secrets needed).
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      # Explicit standalone typecheck runs AFTER build so next-env.d.ts exists.
+      - name: Typecheck
+        run: npm run typecheck
