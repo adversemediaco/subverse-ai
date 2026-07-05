@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, priceId } = body;
+    const { action } = body;
 
     switch (action) {
       case "create-checkout": {

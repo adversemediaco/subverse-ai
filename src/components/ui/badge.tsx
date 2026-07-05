@@ -49,38 +49,44 @@ export function Badge({
   className,
   animated = false,
 }: BadgeProps) {
-  const Component = animated ? motion.span : "span";
-  const animatedProps = animated
-    ? {
-        initial: { opacity: 0, scale: 0.8 },
-        animate: { opacity: 1, scale: 1 },
-        transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
-      }
-    : {};
+  const classNames = cn(
+    "inline-flex items-center gap-1.5 font-semibold tracking-wide uppercase rounded-full border",
+    "select-none whitespace-nowrap",
+    variantStyles[variant],
+    sizeStyles[size],
+    className
+  );
 
-  return (
-    <Component
-      className={cn(
-        "inline-flex items-center gap-1.5 font-semibold tracking-wide uppercase rounded-full border",
-        "select-none whitespace-nowrap",
-        variantStyles[variant],
-        sizeStyles[size],
-        className
-      )}
-      {...animatedProps}
-    >
-      {/* Pulse indicator dot */}
+  // Shared inner content (pulse dot, optional icon, children)
+  const content = (
+    <>
       {pulse && (
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-50" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-current" />
         </span>
       )}
-
       {icon && <span className="shrink-0">{icon}</span>}
       {children}
-    </Component>
+    </>
   );
+
+  // Render an animated span or a plain span. Kept as separate branches so the
+  // motion-specific props (and their tuple-typed easing) type-check correctly.
+  if (animated) {
+    return (
+      <motion.span
+        className={classNames}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      >
+        {content}
+      </motion.span>
+    );
+  }
+
+  return <span className={classNames}>{content}</span>;
 }
 
 export default Badge;

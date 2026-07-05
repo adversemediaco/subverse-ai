@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { User, Bell, Shield, Palette, Globe, Key } from "lucide-react";
+import { User, Bell, Shield, Key } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

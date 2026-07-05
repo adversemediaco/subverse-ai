@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AudioWaveform, Brain, Captions, Globe, Sparkles, Download,
-  Check, Loader2, Cpu, Zap, FileVideo
+  Check, Loader2, Cpu, FileVideo
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";

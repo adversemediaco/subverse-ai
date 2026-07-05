@@ -22,7 +22,6 @@ export async function POST(request: NextRequest) {
       translate = [],       // array of language codes
       burnCaptions = false,
       generateContent = [], // array of content types
-      captionStyle = "youtube",
     } = options || {};
 
     // In production: Queue processing job

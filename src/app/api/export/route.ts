@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projectId, format, language, options } = body;
+    const { projectId, format, language } = body;
 
     if (!projectId || !format) {
       return NextResponse.json(

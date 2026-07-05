@@ -13,10 +13,8 @@ import { Progress } from "@/components/ui/progress";
 
 export default function UploadPage() {
   const [files, setFiles] = React.useState<{ name: string; size: string; progress: number }[]>([]);
-  const [uploading, setUploading] = React.useState(false);
 
   const simulateUpload = () => {
-    setUploading(true);
     setFiles([{ name: "product_demo_final.mp4", size: "856 MB", progress: 0 }]);
     // Simulate progress
     let progress = 0;

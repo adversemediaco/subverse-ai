@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Instagram, Linkedin, Twitter, Facebook, Mail, FileText, Video, ArrowRight } from "lucide-react";
+import { Instagram, Linkedin, Twitter, Mail, FileText, Video, ArrowRight } from "lucide-react";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { GlassCard } from "@/components/ui/glass-card";
 

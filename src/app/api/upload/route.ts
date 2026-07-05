@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     // if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { fileName, fileSize, fileType } = body;
+    const { fileSize, fileType } = body;
 
     // Validate file type
     const allowedTypes = ["video/mp4", "video/mov", "video/avi", "video/mkv", "video/webm"];
