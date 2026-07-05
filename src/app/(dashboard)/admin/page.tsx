@@ -19,9 +19,9 @@ import { Progress } from "@/components/ui/progress";
  */
 
 const ADMIN_STATS = [
-  { label: "Total Users", value: 48293, change: 12.4, up: true, icon: Users, color: "#3B82F6", prefix: "" },
-  { label: "MRR", value: 284500, change: 8.2, up: true, icon: DollarSign, color: "#10B981", prefix: "$" },
-  { label: "Videos Processed", value: 1284392, change: 23.1, up: true, icon: Video, color: "#8B5CF6", prefix: "" },
+  { label: "Total Users", value: 48293, change: 12.4, up: true, icon: Users, color: "#3B82F6", prefix: "", suffix: "" },
+  { label: "MRR", value: 284500, change: 8.2, up: true, icon: DollarSign, color: "#10B981", prefix: "$", suffix: "" },
+  { label: "Videos Processed", value: 1284392, change: 23.1, up: true, icon: Video, color: "#8B5CF6", prefix: "", suffix: "" },
   { label: "Churn Rate", value: 2.3, change: 0.4, up: false, icon: Activity, color: "#F59E0B", prefix: "", suffix: "%" },
 ];
 
