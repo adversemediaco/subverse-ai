@@ -1,0 +1,295 @@
+// =============================================================
+// SubVerse AI — Database Schema
+// PostgreSQL via Prisma ORM
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================
+// USER & AUTH
+// =============================================================
+
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  email         String    @unique
+  name          String?
+  avatar        String?
+  plan          Plan      @default(FREE)
+  credits       Int       @default(100)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  projects      Project[]
+  subscriptions Subscription[]
+  apiKeys       ApiKey[]
+  usage         UsageRecord[]
+
+  @@map("users")
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+// =============================================================
+// PROJECTS & VIDEOS
+// =============================================================
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  status      ProjectStatus @default(UPLOADING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Video metadata
+  videoUrl    String?
+  videoKey    String?       // R2 storage key
+  duration    Float?        // seconds
+  fileSize    BigInt?       // bytes
+  resolution  String?       // e.g., "1920x1080"
+  format      String?       // e.g., "mp4"
+  thumbnail   String?
+
+  // Processing
+  sourceLanguage String?    @default("en")
+  targetLanguages String[]  @default([])
+
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subtitles   Subtitle[]
+  translations Translation[]
+  contents    GeneratedContent[]
+  exports     Export[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  UPLOADING
+  PROCESSING
+  TRANSCRIBING
+  TRANSLATING
+  GENERATING
+  COMPLETE
+  FAILED
+}
+
+// =============================================================
+// SUBTITLES
+// =============================================================
+
+model Subtitle {
+  id        String   @id @default(cuid())
+  projectId String
+  language  String   @default("en")
+  
+  // Subtitle segments
+  segments  SubtitleSegment[]
+
+  // Metadata
+  wordCount Int?
+  confidence Float?  // average confidence score
+  speakers  Int?     // number of detected speakers
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, language])
+  @@map("subtitles")
+}
+
+model SubtitleSegment {
+  id         String   @id @default(cuid())
+  subtitleId String
+  index      Int      // order in the subtitle track
+  startTime  Float    // seconds
+  endTime    Float    // seconds
+  text       String
+  speaker    String?  // speaker label
+  confidence Float?   // word-level confidence
+
+  subtitle   Subtitle @relation(fields: [subtitleId], references: [id], onDelete: Cascade)
+
+  @@index([subtitleId])
+  @@map("subtitle_segments")
+}
+
+// =============================================================
+// TRANSLATIONS
+// =============================================================
+
+model Translation {
+  id          String            @id @default(cuid())
+  projectId   String
+  language    String
+  status      TranslationStatus @default(PENDING)
+  progress    Float             @default(0)
+  
+  // Translated content stored as JSON array of segments
+  segments    Json?
+  
+  // Quality metrics
+  bleuScore   Float?
+  wordCount   Int?
+  
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, language])
+  @@map("translations")
+}
+
+enum TranslationStatus {
+  PENDING
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+// =============================================================
+// AI GENERATED CONTENT
+// =============================================================
+
+model GeneratedContent {
+  id          String      @id @default(cuid())
+  projectId   String
+  type        ContentType
+  content     String      @db.Text
+  metadata    Json?       // platform-specific metadata (hashtags, etc.)
+  tone        String?     // professional, casual, humorous
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("generated_contents")
+}
+
+enum ContentType {
+  INSTAGRAM_CAPTION
+  LINKEDIN_POST
+  TWITTER_THREAD
+  FACEBOOK_POST
+  BLOG_ARTICLE
+  NEWSLETTER
+  YOUTUBE_TITLE
+  YOUTUBE_DESCRIPTION
+  SEO_DESCRIPTION
+  HASHTAGS
+  PODCAST_NOTES
+}
+
+// =============================================================
+// EXPORTS
+// =============================================================
+
+model Export {
+  id        String       @id @default(cuid())
+  projectId String
+  format    ExportFormat
+  language  String
+  fileUrl   String?
+  fileKey   String?
+  fileSize  BigInt?
+  
+  // For burned video exports
+  style     String?      // caption style preset
+  quality   String?      // 720p, 1080p, 4k
+  
+  createdAt DateTime     @default(now())
+
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("exports")
+}
+
+enum ExportFormat {
+  SRT
+  VTT
+  ASS
+  JSON
+  TXT
+  BURNED_VIDEO
+}
+
+// =============================================================
+// BILLING & SUBSCRIPTIONS
+// =============================================================
+
+model Subscription {
+  id               String   @id @default(cuid())
+  userId           String
+  stripeCustomerId String?
+  stripePriceId    String?
+  stripeSubId      String?  @unique
+  status           String   @default("active")
+  currentPeriodEnd DateTime?
+  cancelAtEnd      Boolean  @default(false)
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+// =============================================================
+// USAGE TRACKING
+// =============================================================
+
+model UsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "video_process", "translation", "ai_content", "export"
+  credits   Int      // credits consumed
+  metadata  Json?    // additional context
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("usage_records")
+}
+
+// =============================================================
+// API KEYS
+// =============================================================
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  key       String   @unique
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
+}
