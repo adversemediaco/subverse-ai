@@ -140,6 +140,32 @@ export function useDeleteProject() {
   });
 }
 
+/**
+ * Direct transcribe — the fastest real-AI path. Uploads the file straight to
+ * Whisper (only needs OPENAI_API_KEY) and returns transcript + translations +
+ * content in one call. Works in demo mode with sample data too.
+ */
+export function useTranscribeDirect() {
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (vars: {
+      file: File;
+      language?: string;
+      translate?: string[];
+      content?: ContentKind[];
+      tone?: string;
+    }) => api.transcribeDirect(vars.file, vars),
+    onSuccess: (res) =>
+      toast({
+        title: res.demo ? "Demo transcript ready" : "Transcription complete",
+        description: res.demo ? "Add OPENAI_API_KEY for real results." : undefined,
+        variant: "success",
+      }),
+    onError: (err: Error) =>
+      toast({ title: "Transcription failed", description: err.message, variant: "error" }),
+  });
+}
+
 /** Start a Stripe checkout / billing-portal session and redirect. */
 export function useBilling() {
   const { toast } = useToast();

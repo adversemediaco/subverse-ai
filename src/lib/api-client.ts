@@ -139,7 +139,45 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ---- Direct transcribe (fastest path — only needs OPENAI_API_KEY) ----
+  transcribeDirect: async (
+    file: File,
+    opts: { language?: string; translate?: string[]; content?: ContentKind[]; tone?: string }
+  ): Promise<TranscribeResult> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (opts.language) fd.append("language", opts.language);
+    if (opts.translate?.length) fd.append("translate", opts.translate.join(","));
+    if (opts.content?.length) fd.append("content", opts.content.join(","));
+    if (opts.tone) fd.append("tone", opts.tone);
+    // Do NOT set Content-Type — the browser adds the multipart boundary.
+    const res = await fetch("/api/transcribe", { method: "POST", body: fd });
+    if (!res.ok) {
+      let message = `Transcription failed (${res.status})`;
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch { /* ignore */ }
+      throw new Error(message);
+    }
+    return res.json();
+  },
 };
+
+/** Whisper-shaped segment ({start,end} in seconds) returned by /api/transcribe. */
+export interface TimedSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface TranscribeResult {
+  demo?: boolean;
+  transcript: { language: string; segments: TimedSegment[]; text: string };
+  translations: { language: string; segments: TimedSegment[] }[];
+  content: { kind: ContentKind; text: string }[];
+}
 
 /** Trigger a browser download from a Blob. */
 export function downloadBlob(blob: Blob, filename: string) {

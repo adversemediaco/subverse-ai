@@ -1,19 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
-import { Upload, FileVideo, Film, X, Settings2, Globe, Captions, Sparkles, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Upload, FileVideo, Film, X, Globe, Sparkles, Loader2, Captions, Copy, Check } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { useUpload, useProcess } from "@/hooks/use-actions";
+import { useTranscribeDirect } from "@/hooks/use-actions";
 import { useToast } from "@/components/ui/toast";
-import { formatFileSize } from "@/lib/utils";
-import type { ContentKind } from "@/lib/api-client";
+import { formatFileSize, formatDuration } from "@/lib/utils";
+import type { ContentKind, TranscribeResult } from "@/lib/api-client";
 
 /**
- * Upload Page — real drag-and-drop upload → project creation → processing.
- * Options are selectable and passed to the processing pipeline.
+ * Upload / Transcribe Page — the fastest real-AI experience.
+ * Pick a short video → choose languages + content → "Transcribe Now" sends it
+ * straight to Whisper (only needs OPENAI_API_KEY) and shows the transcript,
+ * translations, and generated content inline. Falls back to demo data otherwise.
  */
 
 const LANGUAGE_OPTIONS = [
@@ -22,115 +23,90 @@ const LANGUAGE_OPTIONS = [
   { code: "es", label: "Spanish" },
   { code: "fr", label: "French" },
   { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
   { code: "ar", label: "Arabic" },
-  { code: "de", label: "German" },
 ];
 
 const CONTENT_OPTIONS: { kind: ContentKind; label: string }[] = [
-  { kind: "instagram", label: "Instagram Caption" },
-  { kind: "blog", label: "Blog Article" },
-  { kind: "twitter", label: "Twitter Thread" },
-  { kind: "seo", label: "SEO Description" },
+  { kind: "instagram", label: "Instagram" },
+  { kind: "twitter", label: "Twitter" },
+  { kind: "blog", label: "Blog" },
   { kind: "hashtags", label: "Hashtags" },
+  { kind: "seo", label: "SEO" },
 ];
 
 export default function UploadPage() {
   const { toast } = useToast();
-  const upload = useUpload();
-  const process = useProcess();
+  const transcribe = useTranscribeDirect();
 
   const [file, setFile] = React.useState<File | null>(null);
-  const [progress, setProgress] = React.useState(0);
-  const [projectId, setProjectId] = React.useState<string | null>(null);
   const [dragActive, setDragActive] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
   const [languages, setLanguages] = React.useState<string[]>(["hi", "es"]);
   const [contentKinds, setContentKinds] = React.useState<ContentKind[]>(["instagram", "hashtags"]);
+  const [result, setResult] = React.useState<TranscribeResult | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const toggle = <T,>(list: T[], value: T, setter: (v: T[]) => void) =>
     setter(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
   const handleFile = (f: File) => {
-    if (!f.type.startsWith("video/")) {
-      toast({ title: "Invalid file", description: "Please select a video file.", variant: "error" });
+    if (!f.type.startsWith("video/") && !f.type.startsWith("audio/")) {
+      toast({ title: "Invalid file", description: "Select a video or audio file.", variant: "error" });
       return;
     }
     setFile(f);
-    setProjectId(null);
-    setProgress(0);
+    setResult(null);
   };
 
-  const startUpload = async () => {
+  const run = async () => {
     if (!file) return;
-    // Simulated progress bar (real byte-progress needs XHR; kept lightweight here).
-    setProgress(10);
-    const timer = setInterval(() => setProgress((p) => Math.min(p + 12, 90)), 300);
-    try {
-      const { projectId: pid } = await upload.mutateAsync(file);
-      clearInterval(timer);
-      setProgress(100);
-      setProjectId(pid);
-    } catch {
-      clearInterval(timer);
-      setProgress(0);
-    }
-  };
-
-  const startProcessing = () => {
-    if (!projectId) return;
-    process.mutate({ projectId, translate: languages, generateContent: contentKinds });
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) handleFile(f);
+    const res = await transcribe.mutateAsync({
+      file,
+      translate: languages,
+      content: contentKinds,
+    });
+    setResult(res);
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Upload Video</h1>
-        <p className="text-sm text-text-secondary mt-1">Upload your video and configure processing options.</p>
+        <h1 className="text-2xl font-bold text-white">Upload &amp; Transcribe</h1>
+        <p className="text-sm text-text-secondary mt-1">
+          Drop a short clip (&le;25MB) to get AI subtitles, translations, and content instantly.
+        </p>
       </div>
 
-      {/* Hidden native input */}
       <input
         ref={inputRef}
         type="file"
-        accept="video/*"
+        accept="video/*,audio/*"
         className="hidden"
         onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
       />
 
-      {/* Drop Zone */}
+      {/* Drop zone */}
       <GlassCard padding="none" tilt={false}>
         <div
-          className={`p-12 flex flex-col items-center justify-center gap-4 border-2 border-dashed rounded-2xl m-1 transition-colors cursor-pointer ${
+          className={`p-10 flex flex-col items-center justify-center gap-4 border-2 border-dashed rounded-2xl m-1 transition-colors cursor-pointer ${
             dragActive ? "border-purple/60 bg-purple/[0.04]" : "border-[rgba(255,255,255,0.08)] hover:border-purple/30"
           }`}
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
           onDragLeave={() => setDragActive(false)}
-          onDrop={onDrop}
+          onDrop={(e) => { e.preventDefault(); setDragActive(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
         >
           <motion.div
-            className="w-20 h-20 rounded-3xl bg-purple/10 flex items-center justify-center"
-            animate={{ y: [0, -10, 0] }}
+            className="w-16 h-16 rounded-3xl bg-purple/10 flex items-center justify-center"
+            animate={{ y: [0, -8, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
           >
-            <Upload className="w-10 h-10 text-purple-glow" />
+            <Upload className="w-8 h-8 text-purple-glow" />
           </motion.div>
           <div className="text-center">
-            <p className="text-base font-medium text-white">Drag and drop your video here</p>
-            <p className="text-sm text-text-muted mt-1">or click to browse • MP4, MOV, AVI, MKV • Up to 5GB</p>
+            <p className="text-base font-medium text-white">Drag &amp; drop, or click to browse</p>
+            <p className="text-sm text-text-muted mt-1">MP4, MOV, MP3, WAV • up to 25MB</p>
           </div>
-          <Button variant="secondary" size="md" icon={<FileVideo className="w-4 h-4" />}>
-            Browse Files
-          </Button>
+          <Button variant="secondary" size="md" icon={<FileVideo className="w-4 h-4" />}>Browse Files</Button>
         </div>
       </GlassCard>
 
@@ -143,25 +119,12 @@ export default function UploadPage() {
                 <Film className="w-6 h-6 text-blue-glow" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-medium text-white truncate">{file.name}</p>
-                  <button className="text-text-muted hover:text-white" onClick={() => { setFile(null); setProgress(0); setProjectId(null); }}>
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-2xs text-text-muted mb-2">
-                  {formatFileSize(file.size)}
-                  {projectId && <span className="text-green-400 ml-2">• Uploaded</span>}
-                </p>
-                {(progress > 0 || upload.isPending) && (
-                  <Progress value={progress} size="sm" gradient={projectId ? "green" : "blue-purple"} />
-                )}
+                <p className="text-sm font-medium text-white truncate">{file.name}</p>
+                <p className="text-2xs text-text-muted">{formatFileSize(file.size)}</p>
               </div>
-              {!projectId && (
-                <Button variant="primary" size="sm" onClick={startUpload} loading={upload.isPending}>
-                  Upload
-                </Button>
-              )}
+              <button className="text-text-muted hover:text-white" onClick={() => { setFile(null); setResult(null); }}>
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </GlassCard>
         </motion.div>
@@ -194,44 +157,121 @@ export default function UploadPage() {
         <GlassCard padding="md" tilt={false} hover={false}>
           <div className="flex items-center gap-3 mb-4">
             <Sparkles className="w-5 h-5 text-yellow-400" />
-            <h3 className="text-sm font-semibold text-white">Generate AI Content</h3>
+            <h3 className="text-sm font-semibold text-white">Generate Content</h3>
           </div>
-          <div className="space-y-2.5">
+          <div className="flex flex-wrap gap-2">
             {CONTENT_OPTIONS.map(({ kind, label }) => (
-              <label key={kind} className="flex items-center justify-between cursor-pointer group">
-                <span className="text-sm text-text-secondary group-hover:text-white transition-colors">{label}</span>
-                <button
-                  type="button"
-                  onClick={() => toggle(contentKinds, kind, setContentKinds)}
-                  className={`w-9 h-5 rounded-full relative transition-colors ${contentKinds.includes(kind) ? "bg-purple/60" : "bg-[rgba(255,255,255,0.1)]"}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${contentKinds.includes(kind) ? "left-[18px]" : "left-0.5"}`} />
-                </button>
-              </label>
+              <button
+                key={kind}
+                onClick={() => toggle(contentKinds, kind, setContentKinds)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  contentKinds.includes(kind)
+                    ? "bg-purple/15 border-purple/40 text-white"
+                    : "bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-text-secondary hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
             ))}
           </div>
         </GlassCard>
       </div>
 
-      {/* Start Processing */}
+      {/* Action */}
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-text-muted">
-          {projectId
-            ? `${languages.length} languages • ${contentKinds.length} content types selected`
-            : "Upload a video to enable processing."}
+          {file ? `${languages.length} languages • ${contentKinds.length} content types` : "Select a file to begin."}
         </p>
         <Button
           variant="gradient"
           size="lg"
           magnetic
           glow
-          disabled={!projectId || process.isPending}
-          onClick={startProcessing}
-          icon={process.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          disabled={!file || transcribe.isPending}
+          onClick={run}
+          icon={transcribe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
         >
-          {process.isPending ? "Processing…" : "Start AI Processing"}
+          {transcribe.isPending ? "Transcribing…" : "Transcribe Now"}
         </Button>
       </div>
+
+      {/* Results */}
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            {result.demo && (
+              <div className="text-xs text-yellow-400/90 bg-yellow-400/10 border border-yellow-400/20 rounded-xl px-4 py-2">
+                Demo results — add <code className="font-mono">OPENAI_API_KEY</code> in Vercel to transcribe your real video.
+              </div>
+            )}
+
+            {/* Transcript */}
+            <GlassCard padding="lg" tilt={false} hover={false}>
+              <div className="flex items-center gap-2 mb-4">
+                <Captions className="w-5 h-5 text-blue-glow" />
+                <h3 className="text-sm font-semibold text-white">Transcript ({result.transcript.language})</h3>
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {result.transcript.segments.map((s, i) => (
+                  <div key={i} className="flex gap-3 text-sm">
+                    <span className="text-2xs text-text-muted font-mono shrink-0 mt-0.5 w-24">
+                      {formatDuration(s.start)} → {formatDuration(s.end)}
+                    </span>
+                    <span className="text-text-secondary">{s.text}</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+
+            {/* Translations */}
+            {result.translations.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.translations.map((t) => (
+                  <GlassCard key={t.language} padding="md" tilt={false} hover={false}>
+                    <h4 className="text-xs font-semibold text-purple-glow uppercase tracking-wider mb-2">{t.language}</h4>
+                    <p className="text-sm text-text-secondary line-clamp-4">
+                      {t.segments.map((s) => s.text).join(" ")}
+                    </p>
+                  </GlassCard>
+                ))}
+              </div>
+            )}
+
+            {/* Content */}
+            {result.content.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.content.map((c) => (
+                  <ContentCard key={c.kind} kind={c.kind} text={c.text} />
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function ContentCard({ kind, text }: { kind: string; text: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <GlassCard padding="md" tilt={false} hover={false}>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-semibold text-white capitalize">{kind.replace("-", " ")}</h4>
+        <button onClick={copy} className="text-text-muted hover:text-white transition-colors">
+          {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+      <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line line-clamp-6">{text}</p>
+    </GlassCard>
   );
 }
