@@ -17,7 +17,13 @@ export function getOpenAI(): OpenAI {
     );
   }
   if (!openai) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY as string });
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY as string,
+      // Retry transient network/rate-limit failures ("Connection error") and
+      // cap per-request time so it can't hang past the serverless timeout.
+      maxRetries: 3,
+      timeout: 50_000,
+    });
   }
   return openai;
 }

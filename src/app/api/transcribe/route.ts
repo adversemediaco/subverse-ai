@@ -65,24 +65,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Transcribe
+    // 1. Transcribe (the essential step — if this fails we surface the error)
     const { segments, text, language: detected } = await transcribeAudio(file, language);
 
-    // 2. Translations (parallel)
-    const translations = await Promise.all(
-      translateList.map(async (lang) => ({
-        language: lang,
-        segments: await translateSegments(segments, lang),
-      }))
-    );
+    // 2. Translations + content are BEST-EFFORT. Using allSettled means a
+    //    failure/timeout in any extra never discards the transcript the user
+    //    already paid for — they still get a successful result.
+    const [translationResults, contentResults] = await Promise.all([
+      Promise.allSettled(
+        translateList.map(async (lang) => ({
+          language: lang,
+          segments: await translateSegments(segments, lang),
+        }))
+      ),
+      Promise.allSettled(
+        contentList.map(async (kind) => ({
+          kind,
+          text: await generateContent(text, kind, tone),
+        }))
+      ),
+    ]);
 
-    // 3. Content (parallel)
-    const content = await Promise.all(
-      contentList.map(async (kind) => ({
-        kind,
-        text: await generateContent(text, kind, tone),
-      }))
-    );
+    const translations = translationResults
+      .filter((r): r is PromiseFulfilledResult<{ language: string; segments: TranscriptSegment[] }> => r.status === "fulfilled")
+      .map((r) => r.value);
+    const content = contentResults
+      .filter((r): r is PromiseFulfilledResult<{ kind: ContentKind; text: string }> => r.status === "fulfilled")
+      .map((r) => r.value);
 
     return NextResponse.json({
       transcript: { language: detected, segments, text },
@@ -91,7 +100,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Transcribe error:", error);
-    const message = error instanceof Error ? error.message : "Transcription failed";
+    const raw = error instanceof Error ? error.message : "Transcription failed";
+    // Turn the opaque OpenAI "Connection error." into actionable guidance.
+    const message = /connection error/i.test(raw)
+      ? "Could not reach OpenAI in time. Try a shorter/smaller clip (audio or <4.5MB video), and confirm your OPENAI_API_KEY has billing credit."
+      : raw;
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
