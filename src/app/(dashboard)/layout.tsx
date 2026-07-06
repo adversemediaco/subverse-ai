@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, Upload, FolderOpen, Captions, Globe,
@@ -10,7 +12,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Dashboard Layout — Sidebar + top bar + content area.
- * Responsive: sidebar collapses to drawer on mobile.
+ * Navigation uses real Next.js <Link> routing; the active item is derived from
+ * the current pathname (never blocks navigation).
  */
 
 const SIDEBAR_ITEMS = [
@@ -31,40 +34,42 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
-  const [activeItem, setActiveItem] = React.useState("/dashboard");
+
+  const isActive = (href: string) =>
+    href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar — Desktop */}
       <aside className="hidden lg:flex flex-col w-64 border-r border-[rgba(255,255,255,0.06)] bg-surface/50 backdrop-blur-xl">
         {/* Logo */}
-        <div className="h-16 flex items-center gap-2 px-6 border-b border-[rgba(255,255,255,0.06)]">
+        <Link href="/dashboard" className="h-16 flex items-center gap-2 px-6 border-b border-[rgba(255,255,255,0.06)]">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple to-blue flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <span className="text-base font-bold text-white">SubVerse AI</span>
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1">
           {SIDEBAR_ITEMS.map((item) => {
-            const isActive = activeItem === item.href;
+            const active = isActive(item.href);
             return (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
-                onClick={(e) => { e.preventDefault(); setActiveItem(item.href); }}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                  isActive
+                  active
                     ? "bg-purple/10 text-white border border-purple/20"
                     : "text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.04)]"
                 )}
               >
-                <item.icon className={cn("w-4 h-4", isActive && "text-purple-glow")} />
+                <item.icon className={cn("w-4 h-4", active && "text-purple-glow")} />
                 {item.label}
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -79,9 +84,9 @@ export default function DashboardLayout({
               <p className="text-sm font-medium text-white truncate">John Patel</p>
               <p className="text-2xs text-text-muted truncate">Pro Plan</p>
             </div>
-            <button className="text-text-muted hover:text-white transition-colors">
+            <Link href="/" className="text-text-muted hover:text-white transition-colors" aria-label="Sign out">
               <LogOut className="w-4 h-4" />
-            </button>
+            </Link>
           </div>
         </div>
       </aside>
@@ -94,7 +99,6 @@ export default function DashboardLayout({
             className="absolute left-0 top-0 bottom-0 w-64 bg-surface border-r border-[rgba(255,255,255,0.06)]"
             initial={{ x: -260 }}
             animate={{ x: 0 }}
-            exit={{ x: -260 }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
           >
             <div className="h-16 flex items-center justify-between px-4">
@@ -110,20 +114,20 @@ export default function DashboardLayout({
             </div>
             <nav className="p-3 space-y-1">
               {SIDEBAR_ITEMS.map((item) => (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
-                  onClick={(e) => { e.preventDefault(); setActiveItem(item.href); setSidebarOpen(false); }}
+                  onClick={() => setSidebarOpen(false)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                    activeItem === item.href
+                    isActive(item.href)
                       ? "bg-purple/10 text-white border border-purple/20"
                       : "text-text-secondary hover:text-white hover:bg-[rgba(255,255,255,0.04)]"
                   )}
                 >
                   <item.icon className="w-4 h-4" />
                   {item.label}
-                </a>
+                </Link>
               ))}
             </nav>
           </motion.aside>
