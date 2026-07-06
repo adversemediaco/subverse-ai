@@ -1,18 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
-import { CreditCard, Check, Zap } from "lucide-react";
+import { CreditCard, Check, Zap, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useBilling } from "@/hooks/use-actions";
 
 /**
  * Billing Page — Current plan, usage, payment methods, invoices.
+ * Plan actions launch a Stripe Checkout / Billing Portal session.
  */
 
 export default function BillingPage() {
+  const billing = useBilling();
+
+  const upgrade = () =>
+    billing.mutate({ action: "create-checkout", priceId: "price_pro" });
+  const managePlan = () =>
+    billing.mutate({ action: "manage-subscription" });
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -37,8 +45,23 @@ export default function BillingPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm">Change Plan</Button>
-            <Button variant="ghost" size="sm" className="text-text-muted">Cancel</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={upgrade}
+              loading={billing.isPending}
+            >
+              Change Plan
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-text-muted"
+              onClick={managePlan}
+              disabled={billing.isPending}
+            >
+              Manage
+            </Button>
           </div>
         </div>
 
@@ -60,7 +83,14 @@ export default function BillingPage() {
       <GlassCard padding="md" tilt={false} hover={false}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-white">Payment Method</h3>
-          <Button variant="ghost" size="sm">Add New</Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={managePlan}
+            icon={billing.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : undefined}
+          >
+            Manage
+          </Button>
         </div>
         <div className="flex items-center gap-4 p-3 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)]">
           <div className="w-10 h-10 rounded-lg bg-blue/10 flex items-center justify-center">

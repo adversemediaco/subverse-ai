@@ -1,13 +1,17 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { motion } from "framer-motion";
-import { Download, FileText, Video, Code, FileJson, Check } from "lucide-react";
+import { Download, FileText, Video, Code, FileJson, Check, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { useExport } from "@/hooks/use-actions";
+import { useSearchParams } from "next/navigation";
 
 /**
  * Export Page — Choose format and download subtitles/content.
+ * Exports run through /api/export (real subtitle files, or a job for burned video).
  */
 
 const EXPORT_FORMATS = [
@@ -19,13 +23,24 @@ const EXPORT_FORMATS = [
   { id: "burned", name: "Burned Video", description: "Captions embedded in video", icon: Video, popular: true },
 ];
 
-export default function ExportPage() {
+function ExportContent() {
+  const searchParams = useSearchParams();
+  const projectId = searchParams.get("projectId") ?? "demo";
+  const [language, setLanguage] = React.useState("en");
   const [selectedFormats, setSelectedFormats] = React.useState<string[]>(["srt"]);
+  const exporter = useExport();
 
   const toggleFormat = (id: string) => {
     setSelectedFormats((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     );
+  };
+
+  const handleExport = async () => {
+    // Export each selected format sequentially (each triggers a download).
+    for (const format of selectedFormats) {
+      await exporter.mutateAsync({ projectId, format, language });
+    }
   };
 
   return (
@@ -77,12 +92,25 @@ export default function ExportPage() {
         <h3 className="text-sm font-semibold text-white mb-4">Export Settings</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-text-muted block mb-2">Languages to Export</label>
+            <label className="text-xs text-text-muted block mb-2">Language to Export</label>
             <div className="flex flex-wrap gap-2">
-              {["All (10)", "English", "Hindi", "Spanish"].map((lang) => (
-                <span key={lang} className="px-3 py-1.5 rounded-lg text-xs bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] text-text-secondary">
-                  {lang}
-                </span>
+              {[
+                { code: "en", label: "English" },
+                { code: "hi", label: "Hindi" },
+                { code: "es", label: "Spanish" },
+                { code: "fr", label: "French" },
+              ].map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => setLanguage(lang.code)}
+                  className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
+                    language === lang.code
+                      ? "bg-purple/15 border-purple/40 text-white"
+                      : "bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.08)] text-text-secondary hover:text-white"
+                  }`}
+                >
+                  {lang.label}
+                </button>
               ))}
             </div>
           </div>
@@ -101,11 +129,33 @@ export default function ExportPage() {
 
       {/* Download button */}
       <div className="flex justify-end gap-3">
-        <Button variant="secondary" size="lg">Preview</Button>
-        <Button variant="gradient" size="lg" magnetic glow icon={<Download className="w-4 h-4" />}>
-          Export {selectedFormats.length} Format{selectedFormats.length !== 1 ? "s" : ""}
+        <Button
+          variant="gradient"
+          size="lg"
+          magnetic
+          glow
+          onClick={handleExport}
+          disabled={exporter.isPending || selectedFormats.length === 0}
+          icon={exporter.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        >
+          {exporter.isPending
+            ? "Exporting…"
+            : `Export ${selectedFormats.length} Format${selectedFormats.length !== 1 ? "s" : ""}`}
         </Button>
       </div>
     </div>
+  );
+}
+
+
+/**
+ * Default export wraps the content in Suspense because useSearchParams()
+ * requires a Suspense boundary during Next.js prerendering.
+ */
+export default function ExportPage() {
+  return (
+    <Suspense fallback={null}>
+      <ExportContent />
+    </Suspense>
   );
 }

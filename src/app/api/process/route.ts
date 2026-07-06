@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { featureFlags, isDatabaseEnabled } from "@/lib/config";
+import { featureFlags, isDatabaseEnabled, isOpenAIEnabled } from "@/lib/config";
 import { getProject, updateProject } from "@/lib/db/queries";
+import { runPipeline } from "@/lib/ai/pipeline";
+import type { ContentKind } from "@/lib/ai/openai";
 
 /**
  * POST /api/process
- * Kicks off the AI processing pipeline for an uploaded video.
+ * Runs the AI processing pipeline for an uploaded video.
  *
- * The heavy work (Whisper transcription, translation, FFmpeg burning) runs in
- * a background worker/queue in production. This endpoint validates the request,
- * records intent, and returns the pipeline plan. Steps requiring an unconfigured
- * service are marked "skipped" so the client can reflect real capabilities.
+ * LIVE mode (OpenAI configured): fetches media from R2, transcribes with
+ * Whisper, saves subtitles, translates, and generates content — synchronously.
+ * NOTE: for large files / heavy workloads this should move to a background
+ * queue; serverless functions are time-limited (see maxDuration).
+ *
+ * DEMO mode: returns the pipeline plan with per-step availability.
  */
+
+// Allow longer execution for the synchronous pipeline (Vercel Pro: up to 300s).
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,54 +27,60 @@ export async function POST(request: NextRequest) {
     }
 
     const {
-      transcribe = true,
-      detectSpeakers = true,
       translate = [] as string[],
-      burnCaptions = false,
-      generateContent = [] as string[],
+      generateContent: contentTypes = [] as ContentKind[],
+      tone = "professional",
     } = options || {};
 
-    // Mark the project as processing when we have a database.
     if (isDatabaseEnabled) {
-      await updateProject(projectId, {
-        status: "PROCESSING",
-        targetLanguages: translate,
-      });
+      await updateProject(projectId, { status: "PROCESSING", targetLanguages: translate });
     }
 
-    // A step is "queued" if its backing service is configured, else "skipped".
-    const aiReady = featureFlags.openai;
-    const step = (name: string, enabled: boolean, needs: boolean) => ({
-      step: name,
-      status: !enabled ? "off" : needs ? "queued" : "skipped",
-    });
+    // ---- LIVE: run the real pipeline ----
+    if (isOpenAIEnabled) {
+      const project = isDatabaseEnabled ? await getProject(projectId) : null;
+      const result = await runPipeline({
+        projectId,
+        videoKey: project?.videoKey,
+        sourceLanguage: project?.sourceLanguage ?? "en",
+        targetLanguages: translate,
+        contentTypes,
+        tone,
+      });
 
+      if (isDatabaseEnabled && !result.transcribed) {
+        // Nothing could run (e.g. no media) — mark failed so the UI reflects it.
+        await updateProject(projectId, { status: "FAILED" });
+      }
+
+      return NextResponse.json({ success: true, projectId, result });
+    }
+
+    // ---- DEMO: return the plan ----
     const steps = [
-      step("audio_extraction", true, true),
-      transcribe && step("transcription", aiReady, true),
-      detectSpeakers && step("speaker_detection", aiReady, true),
-      translate.length > 0 && step("translation", aiReady, true),
-      generateContent.length > 0 && step("content_generation", aiReady, true),
-      burnCaptions && step("burn_captions", true, true),
-    ].filter(Boolean);
+      { step: "audio_extraction", status: "queued" },
+      { step: "transcription", status: "off" },
+      { step: "translation", status: translate.length ? "off" : "skipped" },
+      { step: "content_generation", status: contentTypes.length ? "off" : "skipped" },
+    ];
 
     return NextResponse.json({
       success: true,
       projectId,
+      demo: true,
+      aiEnabled: featureFlags.openai,
       estimatedTime: "3-5 minutes",
-      aiEnabled: aiReady,
       steps,
     });
   } catch (error) {
     console.error("Process error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 /**
- * GET /api/process?projectId=xxx
- * Returns current processing status. Reads from the DB when available,
- * otherwise returns a simulated in-progress state for the demo UI.
+ * GET /api/process?projectId=xxx — current processing status.
  */
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get("projectId");
@@ -80,14 +93,13 @@ export async function GET(request: NextRequest) {
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
-    return NextResponse.json({ projectId, status: project.status });
+    return NextResponse.json({
+      projectId,
+      status: project.status,
+      subtitles: project.subtitles.length,
+      translations: project.translations.length,
+    });
   }
 
-  // Demo: simulated progress
-  return NextResponse.json({
-    projectId,
-    status: "PROCESSING",
-    progress: 65,
-    currentStep: "translation",
-  });
+  return NextResponse.json({ projectId, status: "PROCESSING", progress: 65, demo: true });
 }

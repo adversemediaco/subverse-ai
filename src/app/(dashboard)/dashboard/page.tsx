@@ -6,9 +6,12 @@ import { Upload, Video, Globe, Sparkles, TrendingUp, Clock, ArrowUpRight } from 
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useProjects } from "@/hooks/use-projects";
+import { formatDuration } from "@/lib/utils";
 
 /**
  * Dashboard Home — Overview with stats, recent projects, and quick actions.
+ * Recent projects are pulled live via useProjects (demo data when unconfigured).
  */
 
 const STATS = [
@@ -18,15 +21,10 @@ const STATS = [
   { label: "Time Saved", value: "340h", change: "This quarter", icon: Clock, color: "#10B981" },
 ];
 
-const RECENT_PROJECTS = [
-  { name: "Marketing Webinar Q4", duration: "1:24:36", status: "complete", languages: 5, date: "2 hours ago" },
-  { name: "Product Demo v2.1", duration: "12:45", status: "processing", languages: 3, date: "4 hours ago" },
-  { name: "Podcast Ep. 42 - AI Future", duration: "45:20", status: "complete", languages: 8, date: "1 day ago" },
-  { name: "Instagram Reels Pack", duration: "3:12", status: "complete", languages: 2, date: "2 days ago" },
-  { name: "Customer Testimonial", duration: "5:48", status: "complete", languages: 12, date: "3 days ago" },
-];
-
 export default function DashboardPage() {
+  const { data: projects } = useProjects();
+  const recent = (projects ?? []).slice(0, 5);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -103,9 +101,12 @@ export default function DashboardPage() {
               </a>
             </div>
             <div className="space-y-3">
-              {RECENT_PROJECTS.map((project, i) => (
+              {recent.length === 0 && (
+                <p className="text-sm text-text-muted py-6 text-center">No projects yet — upload your first video.</p>
+              )}
+              {recent.map((project, i) => (
                 <motion.div
-                  key={project.name}
+                  key={project.id}
                   className="flex items-center gap-4 p-3 rounded-xl hover:bg-[rgba(255,255,255,0.03)] transition-colors group cursor-pointer"
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -116,19 +117,23 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{project.name}</p>
-                    <p className="text-2xs text-text-muted">{project.duration} • {project.languages} languages</p>
+                    <p className="text-2xs text-text-muted">
+                      {formatDuration(project.duration)} • {project.languages} languages
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <span
                       className={`text-2xs font-medium px-2 py-0.5 rounded-full ${
-                        project.status === "complete"
+                        project.status === "COMPLETE"
                           ? "bg-green-500/10 text-green-400"
                           : "bg-purple/10 text-purple-glow"
                       }`}
                     >
-                      {project.status === "complete" ? "Complete" : "Processing"}
+                      {project.status === "COMPLETE" ? "Complete" : "Processing"}
                     </span>
-                    <span className="text-2xs text-text-muted hidden sm:inline">{project.date}</span>
+                    <span className="text-2xs text-text-muted hidden sm:inline">
+                      {new Date(project.createdAt).toLocaleDateString()}
+                    </span>
                     <ArrowUpRight className="w-4 h-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </motion.div>
