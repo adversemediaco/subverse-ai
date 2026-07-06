@@ -21,11 +21,14 @@ export function CustomCursor() {
   const [isVisible, setIsVisible] = React.useState(false);
 
   React.useEffect(() => {
-    // Only render on non-touch devices
+    // Only render on non-touch, fine-pointer devices
     if (typeof window === "undefined") return;
     if ("ontouchstart" in window) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
 
     setIsVisible(true);
+    // Signal CSS that it's safe to hide the native cursor now.
+    document.body.classList.add("cursor-ready");
 
     const handleMouseMove = (e: MouseEvent) => {
       cursorX.set(e.clientX);
@@ -61,6 +64,7 @@ export function CustomCursor() {
         el.removeEventListener("mouseenter", handleElementEnter);
         el.removeEventListener("mouseleave", handleElementLeave);
       });
+      document.body.classList.remove("cursor-ready");
     };
   }, [cursorX, cursorY]);
 

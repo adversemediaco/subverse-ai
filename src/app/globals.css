@@ -99,12 +99,18 @@ body {
   font-family: var(--font-inter, system-ui, sans-serif);
   min-height: 100vh;
   overflow-x: hidden;
-  cursor: none; /* We use custom cursor */
 }
 
-/* Show default cursor on mobile */
+/* Only hide the native cursor AFTER the custom cursor mounts (JS adds this
+   class). If JS fails to run/hydrate, the system cursor stays visible so the
+   page is never left feeling "dead". */
+body.cursor-ready {
+  cursor: none;
+}
+
+/* Always keep a normal cursor on touch devices */
 @media (pointer: coarse) {
-  body { cursor: auto; }
+  body.cursor-ready { cursor: auto; }
 }
 
 /* ============================================================

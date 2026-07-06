@@ -119,23 +119,23 @@ export function HeroSection() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6, duration: 0.6 }}
             >
-              <Button
-                variant="gradient"
-                size="xl"
-                magnetic
-                glow
-                icon={<Sparkles className="w-5 h-5" />}
-                iconRight={<ArrowRight className="w-4 h-4" />}
-              >
-                Start Free — No CC Required
-              </Button>
-              <Button
-                variant="glass"
-                size="xl"
-                icon={<Play className="w-4 h-4" />}
-              >
-                Watch Demo
-              </Button>
+              <a href="/dashboard">
+                <Button
+                  variant="gradient"
+                  size="xl"
+                  magnetic
+                  glow
+                  icon={<Sparkles className="w-5 h-5" />}
+                  iconRight={<ArrowRight className="w-4 h-4" />}
+                >
+                  Start Free — No CC Required
+                </Button>
+              </a>
+              <a href="#demo">
+                <Button variant="glass" size="xl" icon={<Play className="w-4 h-4" />}>
+                  Watch Demo
+                </Button>
+              </a>
             </motion.div>
 
             {/* Stats */}
