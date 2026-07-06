@@ -54,6 +54,29 @@ const clerkAppearance = {
   },
 };
 
+/**
+ * Error boundary that isolates ClerkProvider. If Clerk crashes (e.g. an invalid
+ * or partially-configured publishable key), we fall back to rendering the app
+ * WITHOUT auth instead of taking down the entire page. This prevents the
+ * dreaded "whole site is static / unclickable" failure from a bad env var.
+ */
+class ClerkErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: unknown) {
+    // Surface the reason in the console for debugging.
+    console.error("Clerk failed to initialise — running without auth.", error);
+  }
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -64,7 +87,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   if (isClerkEnabled) {
-    return <ClerkProvider appearance={clerkAppearance}>{tree}</ClerkProvider>;
+    return (
+      <ClerkErrorBoundary fallback={tree}>
+        <ClerkProvider appearance={clerkAppearance}>{tree}</ClerkProvider>
+      </ClerkErrorBoundary>
+    );
   }
 
   return tree;
